@@ -1,8 +1,8 @@
 # ChildSafeAds — System Design Report
 
-**Team pragyananda** · NLLP @ EMNLP 2026 · one 16 GB GPU · 22 GPU-hours · no paid API · no data leaves the machine
+**Team pragyananda** · NLLP @ EMNLP 2026 · one 16 GB GPU · 22 GPU-hours 
 
-**`mean_macro_f1` 0.6223** — ST1 0.5906 · ST2 0.6979 · ST3 0.5784 · ST3-family 0.6501 · coverage 1.0
+**`mean_macro_f1` 0.6223** — ST1 0.5906 · ST2 0.6979 · ST3 0.5784 · ST3-family 0.6501 
 
 The task asks what a regulator could achieve at each level of data access. We treated that as
 the question and accuracy as the instrument, and found that **the three sub-tasks disagree** —
@@ -24,6 +24,8 @@ t-test across runs.
 | L4 — + product page @2048 tok | 8 | **0.686 ±.059** | **0.749 ±.014** | 0.396 ±.027 |
 | | | **+0.083** (p=.005) | **+0.128** (p<.0001) | **−0.031** (p=.018) |
 
+![The three sub-tasks disagree about what data they want](figures/fig1_data_levels.png)
+
 The sub-task with actual legal consequence — *is this disclosed, does it exhort a child to
 buy* — needs **nothing beyond the transcript**. Page boilerplate is a distractor competing for
 the same context window; widening it from 1024 to 2048 tokens moved ST2 up and ST3 down in the
@@ -35,6 +37,8 @@ retains 89 % of the crawl's value**, and at a 10 % budget targeted escalation sc
 against random's 0.546 — most of the gain is in choosing well, not crawling more.
 `monitor.py` implements this and reports cost in crawls issued and analyst segments queued.
 
+![Most of the crawl is optional](figures/fig2_cascade.png)
+
 ## 2 · The system
 
 Routed twice. Each routing is the output of a measurement, not a preference.
@@ -44,6 +48,8 @@ Routed twice. Each routing is the output of a measurement, not a preference.
 | **ST1** | ModernBERT-large, 6 seeds averaged | 1–4 | crawl +0.083; classical arm *loses* 0.019 here |
 | **ST2** | that encoder + a classical TF-IDF arm, 50/50 | 1–4 | +0.070, 5/5 CV folds — **this call was wrong, §4** |
 | **ST3** | ModernBERT-large @ L1, 6 seeds; disclosure flags averaged with a QLoRA Qwen2.5-7B | 1 (LLM: 2) | crawl −0.031; +0.029, 20/20 splits |
+
+![The routed system](figures/fig3_architecture.png)
 
 One backbone, three heads, pos-weighted BCE so flags with 40 training instances are not
 drowned by ones with 1,277. The classical arm's decisive feature is **character n-grams (3–5)
@@ -89,16 +95,11 @@ Five components were both assessed and measured on the evaluation set:
 | ST3 disclosure hybrid | adopt (20/20) | **+0.0871** | ✅ |
 | **ST2 classical blend** | **adopt (5/5 folds)** | **−0.0293** | ❌ |
 
+![Four of five adoption calls were correct](figures/fig4_validation.png)
+
 **Four of five correct — and the failure was on the larger instrument.** The blend moves ST2
-from 1.89 labels per instance to 1.43, toward the training prior of 1.32. Per class:
-
-| ST2 class | train n | encoder | blend |
-|---|---:|---:|---:|
-| **gambling** | **17** | **3** | **0** |
-| gambling_adjacent | 109 | 47 | 24 |
-| health | 319 | 72 | 46 |
-
-`gambling` is predicted **zero times**, fixing its F1 at 0. ST2 macro-averages over twelve
+from 1.89 labels per instance to 1.43, toward the training prior of 1.32 — and it cuts every
+class, the rare ones hardest. `gambling` is predicted **zero times**, fixing its F1 at 0. ST2 macro-averages over twelve
 classes, so one class dropping out costs up to **1/12 = 0.083**; the observed loss is 0.029.
 A single rare class, extinguished by an operating-point shift, accounts for the whole regression.
 
