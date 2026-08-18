@@ -1,13 +1,13 @@
 # ChildSafeAds — System Design Report
 
-**Team pragyananda** · NLLP @ EMNLP 2026 · one 16 GB GPU · 22 GPU-hours 
+**Team pragyananda** · NLLP @ EMNLP 2026 · one 16 GB GPU · 22 GPU-hours · no paid API · no data leaves the machine
 
-**`mean_macro_f1` 0.6223** — ST1 0.5906 · ST2 0.6979 · ST3 0.5784 · ST3-family 0.6501 
+**`mean_macro_f1` 0.6223** — ST1 0.5906 · ST2 0.6979 · ST3 0.5784 · ST3-family 0.6501 · coverage 1.0
 
 The task asks what a regulator could achieve at each level of data access. We treated that as
 the question and accuracy as the instrument, and found that **the three sub-tasks disagree** —
 about which data they want and which model family they want — so the system routes rather
-than unifies. §4 is the part worth reading: a component that passed our strongest validation
+than unifies. Section 4 is the part worth reading: a component that passed our strongest validation
 and still lost on the evaluation set, and why the instrument could not have seen it coming.
 
 Full ablations: [`system_design_report_FULL.md`](system_design_report_FULL.md).
@@ -46,7 +46,7 @@ Routed twice. Each routing is the output of a measurement, not a preference.
 | | model | levels | selected on |
 |---|---|---|---|
 | **ST1** | ModernBERT-large, 6 seeds averaged | 1–4 | crawl +0.083; classical arm *loses* 0.019 here |
-| **ST2** | that encoder + a classical TF-IDF arm, 50/50 | 1–4 | +0.070, 5/5 CV folds — **this call was wrong, §4** |
+| **ST2** | that encoder + a classical TF-IDF arm, 50/50 | 1–4 | +0.070, 5/5 CV folds — **this call was wrong, Section 4** |
 | **ST3** | ModernBERT-large @ L1, 6 seeds; disclosure flags averaged with a QLoRA Qwen2.5-7B | 1 (LLM: 2) | crawl −0.031; +0.029, 20/20 splits |
 
 ![The routed system](figures/fig3_architecture.png)
@@ -62,7 +62,7 @@ the paid-promotion label rules out `undisclosed_advertising` (holds in **0 of 1,
 instances); the two disclosure flags are exclusive, `undisclosed_advertising` surviving; a
 near-empty transcript (median 2 words vs a corpus median of 222) forces `insufficient_context`;
 otherwise `no_flag` above 0.6 stands alone. Worth **+0.057 on 19/20 held-out halves** — not
-decoration. Every constant was fixed by the §4 criterion, none by gradient on dev.
+decoration. Every constant was fixed by the Section 4 criterion, none by gradient on dev.
 
 ## 3 · Result
 
@@ -216,7 +216,7 @@ implementation by matching a submission scored 0.6185 to a local 0.6183.
 **22 GPU-hours on one 16 GB card**, all one-off training: 6 × ModernBERT-large L4@2048 (5.2 h),
 6 × L1@1024 at 6 epochs (7.8 h), 3 × QLoRA on Qwen2.5-7B (9.0 h), TF-IDF ~10 min on CPU.
 Inference over all 3,360 instances **~2 GPU-h**, nine tenths of it the 7B. The whole study,
-including §8, ~45 GPU-h across 58 fine-tuning runs. Nothing left the machine — a compliance
+including Section 8, ~45 GPU-h across 58 fine-tuning runs. Nothing left the machine — a compliance
 property under the corpus's research-use terms, not only a cost choice.
 
 The 7B is 82 % of training cost for two flags of eight. It is the first thing to drop under a
@@ -239,7 +239,7 @@ python src/make_test_submission.py --tag "" --seeds 0 1 2 3 4 5 --st3-tag _hyb3 
 We rebuilt the submitted file from these commands and diffed all 503 predictions: **zero
 differ.** `src/metrics.py` is the local metric replica, validated to 0.0002.
 
-**Limits.** The ST2 blend was a mistake and we shipped it (§4); submissions were exhausted, so
+**Limits.** The ST2 blend was a mistake and we shipped it (Section 4); submissions were exhausted, so
 the corrected system at **0.6321** is reported but not leaderboard-verified. L2 was run once
 and we claim nothing about its position. ST3's level-1 advantage is significant (p = 0.018)
 but modest (0.031), supporting *the crawl does not help ST3* more than any ordering among the
