@@ -6,7 +6,7 @@
 
 *Team: **pragyananda** · code and this report: **https://github.com/pragyananda/childsafeads-nllp2026** · every number below is reproducible from the commands in Section 14\.*
 
-Full ablations: [`system_design_report_FULL.md`](system_design_report_FULL.md).
+Full ablations: [`REPORT_FULL.md`](REPORT_FULL.md).
 
 ## **Summary**
 

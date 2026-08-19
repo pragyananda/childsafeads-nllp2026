@@ -6,7 +6,7 @@
 
 Code, figures and full ablations: **https://github.com/pragyananda/childsafeads-nllp2026**
 
-Full ablations: [`system_design_report_FULL.md`](system_design_report_FULL.md).
+Full ablations: [`REPORT_FULL.md`](REPORT_FULL.md).
 
 The task asks what a regulator could achieve at each level of data access. We treated that as
 the question and accuracy as the instrument. The answer is that **the three sub-tasks
