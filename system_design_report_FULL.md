@@ -1,10 +1,12 @@
-# System design report 
+# System design report
 
 # **ChildSafeAds, NLLP @ EMNLP 2026**
 
 *Final evaluation score **0.6223** mean macro-F1 · routed hybrid — fine-tuned encoder \+ classical ML \+ QLoRA LLM, each used where it measurably wins · 15 fine-tuning runs in the submitted system, 58 across the study · 1×16GB GPU · \~22 GPU-hours to build, \~45 including everything rejected · no paid API, no instance leaves the machine*
 
 *Team: **pragyananda** · code and this report: **https://github.com/pragyananda/childsafeads-nllp2026** · every number below is reproducible from the commands in Section 14\.*
+
+Full ablations: [`system_design_report_FULL.md`](system_design_report_FULL.md).
 
 ## **Summary**
 
@@ -14,14 +16,14 @@ Five submissions were permitted. The first four were spent measuring components
 against the evaluation set one at a time, which is why every effect below
 decomposes exactly (Section 11). The fifth is the system this report describes.
 
-| Metric | Submission 4 (encoder only) | **Final submission** | Held-out prediction | Delivered |
-| :---- | :---- | :---- | :---- | :---- |
-| **mean\_macro\_f1** | 0.6030 | **0.6223** | — | **\+0.0193** |
-| st1\_macro\_f1 | 0.5906 | 0.5906 | unchanged by construction | **exact** |
-| st2\_macro\_f1 | **0.7272** | 0.6979 | \+0.070, 5/5 folds | **−0.0293 — reversed** |
-| st3\_macro\_f1 | 0.4913 | **0.5784** | \+0.072, 20/20 splits | **\+0.0871 — 121%** |
-| st3\_family\_macro\_f1 | 0.5798 | 0.6501 | — | \+0.0703 |
-| Baseline | 0.093 | 0.093 | | |
+| Metric                    | Submission 4 (encoder only) | **Final submission** | Held-out prediction       | Delivered                      |
+| :------------------------ | :-------------------------- | :------------------------- | :------------------------ | :----------------------------- |
+| **mean\_macro\_f1** | 0.6030                      | **0.6223**           | —                        | **\+0.0193**             |
+| st1\_macro\_f1            | 0.5906                      | 0.5906                     | unchanged by construction | **exact**                |
+| st2\_macro\_f1            | **0.7272**            | 0.6979                     | \+0.070, 5/5 folds        | **−0.0293 — reversed** |
+| st3\_macro\_f1            | 0.4913                      | **0.5784**           | \+0.072, 20/20 splits     | **\+0.0871 — 121%**     |
+| st3\_family\_macro\_f1    | 0.5798                      | 0.6501                     | —                        | \+0.0703                       |
+| Baseline                  | 0.093                       | 0.093                      |                           |                                |
 
 Because ST1 predictions are byte-identical to the scored run, the mean
 decomposes with no residual: (−0.0293 \+ 0.0871)/3 \= \+0.0193, against the
@@ -36,22 +38,22 @@ explains why, and it is the most useful result in this report.
 
 ### **Principal findings**
 
-|  |  |
-| :---- | :---- |
-| ST2 gain from the crawl | **\+0.128** (p \< 0.0001) |
-| ST3 *loss* from the crawl | **−0.031** (p \= 0.018) |
-| Crawl needed for 89% of the benefit | **20% of the corpus** |
-| Legal definitions supplied to a prompted model | **\+0.038** on ST3 |
-| Statutory citations added on top of definitions | **−0.002** |
-| none (ST1) recall before correction | **0.14** |
-| no\_flag (ST3) recall before correction | **0.16** |
-| Held-out estimate made *before* first submission | 0.60 (actual 0.5962) |
-| Classical TF-IDF vs the same encoder, same folds | ST2 **\+0.070**, ST1 **−0.019** |
-| That ST2 gain, measured on the evaluation set | **−0.029 — the criterion's first failure** |
-| Effective sample size behind it (rarest ST2 class) | **17**, not 2,857 |
-| Of that ST2 gain, attributable to recalibration | \+0.035 (thresholds reach it too) |
-| Of that ST2 gain, attributable to complementarity | \+0.035 (thresholds cannot) |
-| QLoRA LLM standalone ST3 vs the encoder it improves | 0.444 vs 0.502 |
+|                                                     |                                                    |
+| :-------------------------------------------------- | :------------------------------------------------- |
+| ST2 gain from the crawl                             | **\+0.128** (p \< 0.0001)                    |
+| ST3*loss* from the crawl                          | **−0.031** (p \= 0.018)                     |
+| Crawl needed for 89% of the benefit                 | **20% of the corpus**                        |
+| Legal definitions supplied to a prompted model      | **\+0.038** on ST3                           |
+| Statutory citations added on top of definitions     | **−0.002**                                  |
+| none (ST1) recall before correction                 | **0.14**                                     |
+| no\_flag (ST3) recall before correction             | **0.16**                                     |
+| Held-out estimate made*before* first submission   | 0.60 (actual 0.5962)                               |
+| Classical TF-IDF vs the same encoder, same folds    | ST2**\+0.070**, ST1 **−0.019**        |
+| That ST2 gain, measured on the evaluation set       | **−0.029 — the criterion's first failure** |
+| Effective sample size behind it (rarest ST2 class)  | **17**, not 2,857                            |
+| Of that ST2 gain, attributable to recalibration     | \+0.035 (thresholds reach it too)                  |
+| Of that ST2 gain, attributable to complementarity   | \+0.035 (thresholds cannot)                        |
+| QLoRA LLM standalone ST3 vs the encoder it improves | 0.444 vs 0.502                                     |
 
 Three sub-tasks over the same sponsored segments. Only two of them are worth paying to crawl the web for — and the third performs *worse* when you do. Nor do they want the same *model*: the sub-task an encoder wins by 0.019 is next to the one it loses by 0.070, on identical features and identical folds.
 
@@ -67,21 +69,19 @@ We treated "which levels are worth buying" as the primary research question and 
 
 We fine-tuned the same multi-task architecture at each access level and repeated every configuration across seeds. Across 21 runs, the three sub-tasks disagree about what data they want.
 
-| Configuration | Collection cost | Runs | ST1 | ST2 | ST3 |
-| :---- | :---- | ----: | :---- | :---- | :---- |
-| L1 — transcript only | lowest | 9 | 0.604 ±.013 | 0.621 ±.014 | **0.427 ±.021** |
-| L2 — \+ video metadata | low | 1 | 0.594 | 0.637 | 0.416 |
-| L4 — \+ page, 1024 tok | highest | 3 | 0.638 ±.027 | 0.719 ±.004 | 0.381 ±.006 |
-| L4 — \+ page, 2048 tok | highest | 8 | **0.686 ±.059** | **0.749 ±.014** | 0.396 ±.027 |
+| Configuration          | Collection cost | Runs | ST1                    | ST2                    | ST3                    |
+| :--------------------- | :-------------- | ---: | :--------------------- | :--------------------- | :--------------------- |
+| L1 — transcript only  | lowest          |    9 | 0.604 ±.013           | 0.621 ±.014           | **0.427 ±.021** |
+| L2 —\+ video metadata | low             |    1 | 0.594                  | 0.637                  | 0.416                  |
+| L4 —\+ page, 1024 tok | highest         |    3 | 0.638 ±.027           | 0.719 ±.004           | 0.381 ±.006           |
+| L4 —\+ page, 2048 tok | highest         |    8 | **0.686 ±.059** | **0.749 ±.014** | 0.396 ±.027           |
 
-*Dev macro-F1, mean ± standard deviation across independent runs. ST1 is macro-averaged over reference-present labels, matching the leaderboard implementation.*  
-Tested directly, with Welch's t-test across runs:
+*Dev macro-F1, mean ± standard deviation across independent runs. ST1 is macro-averaged over reference-present labels, matching the leaderboard implementation.*Tested directly, with Welch's t-test across runs:
 
-- **ST2 — product category.** The crawl is worth **\+0.128** (p \< 0.0001, d \= 9.0). Unambiguous, and unsurprising: the shop page states what is being sold.  
-- **ST1 — commercial type.** The crawl is worth **\+0.083** (p \= 0.005). Real, but noisy — ST1's run-to-run spread is by far the largest of the three.  
+- **ST2 — product category.** The crawl is worth **\+0.128** (p \< 0.0001, d \= 9.0). Unambiguous, and unsurprising: the shop page states what is being sold.
+- **ST1 — commercial type.** The crawl is worth **\+0.083** (p \= 0.005). Real, but noisy — ST1's run-to-run spread is by far the largest of the three.
 - **ST3 — compliance flags.** The crawl **costs** 0.031 (p \= 0.018). At the family level the same direction holds (−0.025, p \= 0.063).
 
->   
 > **Consequence for a monitoring system.** The sub-task with actual legal consequence — is this advertising disclosed, does it exhort children to buy — is the one that needs *nothing beyond the transcript*. Compliance triage can run at the cheapest tier, over the whole platform. The expensive crawl should be reserved for identifying *what* is being sold, which a regulator can defer until a segment has already been flagged.
 
 The mechanism is plain enough in the inputs. ST3 turns on what the creator said and where a disclosure appeared; product-page boilerplate is a distractor competing for the same context window. Doubling the context from 1024 to 2048 tokens, which admits more page text, moved ST2 up and ST3 down in the same runs.
@@ -92,17 +92,17 @@ The finding above does not recommend "run level 4 on everything", which is what 
 
 We simulated exactly that. ST3 is always answered at level 1\. ST1 and ST2 are answered at level 1 unless an instance is escalated, in which case the crawled model answers instead. The crawl budget is the free parameter.
 
-| Crawl budget | Targeted escalation | Flagged-first | Random (control) |
-| ----: | :---- | :---- | :---- |
-| 0% | 0.540 | 0.540 | 0.540 |
-| 10% | **0.577** | 0.577 | 0.546 |
-| 20% | 0.588 | **0.590** | 0.551 |
-| 30% | 0.582 | 0.580 | 0.553 |
-| 50% | 0.590 | 0.589 | 0.580 |
-| 70% | 0.594 | 0.590 | 0.586 |
-| 100% | 0.596 | 0.596 | 0.596 |
+| Crawl budget | Targeted escalation | Flagged-first   | Random (control) |
+| -----------: | :------------------ | :-------------- | :--------------- |
+|           0% | 0.540               | 0.540           | 0.540            |
+|          10% | **0.577**     | 0.577           | 0.546            |
+|          20% | 0.588               | **0.590** | 0.551            |
+|          30% | 0.582               | 0.580           | 0.553            |
+|          50% | 0.590               | 0.589           | 0.580            |
+|          70% | 0.594               | 0.590           | 0.586            |
+|         100% | 0.596               | 0.596           | 0.596            |
 
-*Escalation policies: by uncertainty of the cheap tier (top-2 ST1 margin plus distance of ST2 scores from the decision boundary); by whether level-1 screening raised any compliance flag; and at random as a control.*  
+*Escalation policies: by uncertainty of the cheap tier (top-2 ST1 margin plus distance of ST2 scores from the decision boundary); by whether level-1 screening raised any compliance flag; and at random as a control.*
 **Crawling 20% of the corpus retains 89% of what crawling all of it buys** (0.590 against 0.596, from a 0.540 floor). Which 20% matters as much as how much: at a 10% budget, targeted escalation scores 0.577 against random's 0.546, so most of the available gain comes from choosing well rather than from crawling more.
 
 For an authority the practical reading is that the outbound-link crawl — the component that is slow, fails on dead or bot-blocking pages, and carries the most friction under platform terms — can be a targeted follow-up on roughly one segment in five, rather than a precondition for monitoring at all.
@@ -113,14 +113,14 @@ Macro-F1 is the leaderboard's currency, not an enforcement authority's. What det
 
 For the two practices prohibited outright under UCPD Annex I, using the level-1 model:
 
-| Flag | Prevalence | Recall target | Precision | Reviewed per 1,000 screened |
-| :---- | ----: | ----: | ----: | ----: |
-| undisclosed\_advertising | 14.7% | 80% | 0.39 | 301 |
-|  |  | 90% | 0.30 | 446 |
-|  |  | 95% | 0.25 | 556 |
-| direct\_exhortation | 15.3% | 80% | 0.22 | 567 |
-|  |  | 90% | 0.21 | 656 |
-|  |  | 95% | 0.19 | 753 |
+| Flag                     | Prevalence | Recall target | Precision | Reviewed per 1,000 screened |
+| :----------------------- | ---------: | ------------: | --------: | --------------------------: |
+| undisclosed\_advertising |      14.7% |           80% |      0.39 |                         301 |
+|                          |            |           90% |      0.30 |                         446 |
+|                          |            |           95% |      0.25 |                         556 |
+| direct\_exhortation      |      15.3% |           80% |      0.22 |                         567 |
+|                          |            |           90% |      0.21 |                         656 |
+|                          |            |           95% |      0.19 |                         753 |
 
 Undisclosed advertising is tractable: catching four in five costs a reviewer about 300 segments per thousand screened, and roughly two in five of those are genuine. Direct exhortation is not deployable at any of these operating points — at 80% recall more than three quarters of the queue is noise. That is consistent with it being the flag whose definition is a three-part contextual test rather than a surface property of the text.
 
@@ -128,10 +128,10 @@ Undisclosed advertising is tractable: catching four in five costs a reviewer abo
 
 The taxonomy grades each flag by how the law operates, and macro-F1 discards that: it treats a blacklisted practice under UCPD Annex I exactly like a soft-law HFSS case. Re-weighting by severity (per se 3, conditional 2, soft law 1):
 
-| ST3 answered from | Unweighted | Severity-weighted |
-| :---- | :---- | :---- |
-| Level 1 (transcript) | 0.479 | **0.498** |
-| Level 4 (full crawl) | 0.449 | 0.458 |
+| ST3 answered from    | Unweighted | Severity-weighted |
+| :------------------- | :--------- | :---------------- |
+| Level 1 (transcript) | 0.479      | **0.498**   |
+| Level 4 (full crawl) | 0.449      | 0.458             |
 
 The level-1 advantage **grows** under severity weighting, from \+0.030 to \+0.040. The reason is visible per flag: undisclosed\_advertising, a *per se* prohibition, scores 0.65 from the transcript against 0.51 with the crawl. The cheap tier is better precisely where the law is strictest, which strengthens the case for screening at level 1 rather than weakening it.
 
@@ -141,11 +141,11 @@ The system is **routed twice**: once by data access level, and once by model
 family. Neither routing was a design preference; each is the output of a
 measurement reported below.
 
-| | model | data levels | why |
-| :---- | :---- | :---- | :---- |
-| **ST1** | ModernBERT-large, 6 seeds averaged | 1–4 | the crawl is worth \+0.083; the classical arm *loses* 0.019 here |
-| **ST2** | that encoder, averaged 50/50 with a classical TF-IDF arm | 1–4 | the blend is worth \+0.070 over the encoder, 5/5 folds |
-| **ST3** | ModernBERT-large at level 1, 6 seeds, with the two disclosure flags averaged against a QLoRA-tuned Qwen2.5-7B | 1 (LLM: 2) | the crawl *costs* ST3 0.031; the LLM beats the encoder on disclosure and only on disclosure |
+|               | model                                                                                                         | data levels | why                                                                                          |
+| :------------ | :------------------------------------------------------------------------------------------------------------ | :---------- | :------------------------------------------------------------------------------------------- |
+| **ST1** | ModernBERT-large, 6 seeds averaged                                                                            | 1–4        | the crawl is worth\+0.083; the classical arm *loses* 0.019 here                            |
+| **ST2** | that encoder, averaged 50/50 with a classical TF-IDF arm                                                      | 1–4        | the blend is worth\+0.070 over the encoder, 5/5 folds                                        |
+| **ST3** | ModernBERT-large at level 1, 6 seeds, with the two disclosure flags averaged against a QLoRA-tuned Qwen2.5-7B | 1 (LLM: 2)  | the crawl*costs* ST3 0.031; the LLM beats the encoder on disclosure and only on disclosure |
 
 **The backbone.** A shared ModernBERT-large with three heads — softmax for ST1, sigmoid for ST2 and ST3 — trained jointly with pos-weighted BCE so that flags appearing 40 times in training are not drowned out by ones appearing 1,277 times. Entering all three sub-tasks costs barely more than entering one, and since omitted sub-tasks score zero, a single-sub-task entry is capped at a mean of 0.333. Two instances are trained, differing only in which levels they read, and each is a six-seed probability average; Section 7 explains why averaging is preferred to selecting among seeds.
 
@@ -155,9 +155,9 @@ measurement reported below.
 
 **Constraint layer.** ST3 probabilities are thresholded at 0.5 — except `inadequate_disclosure`, at 0.40 — then four rules are applied in this order:
 
-1. YouTube's paid-promotion label rules out undisclosed\_advertising.  
-2. The two disclosure flags are made mutually exclusive; **undisclosed\_advertising is always the survivor** (\+0.008, 19/20 held-out halves, against keeping the higher-scoring one).  
-3. A near-empty transcript replaces the whole set with insufficient\_context.  
+1. YouTube's paid-promotion label rules out undisclosed\_advertising.
+2. The two disclosure flags are made mutually exclusive; **undisclosed\_advertising is always the survivor** (\+0.008, 19/20 held-out halves, against keeping the higher-scoring one).
+3. A near-empty transcript replaces the whole set with insufficient\_context.
 4. Otherwise, if no\_flag reaches probability 0.6, it replaces the whole set (Section 11).
 
 Rules 3 and 4 are exclusive of each other and of everything above them, matching the taxonomy's rule that no\_flag and insufficient\_context each stand alone. ST1 and ST2 receive no post-processing; ST2 falls back to its highest-margin label if nothing clears 0.5.
@@ -177,8 +177,8 @@ now submit is this one with the ST2 blend removed: it scores **0.6321**.
 
 Three rules the taxonomy states outright, enforced on the output rather than hoped for from the loss:
 
-- YouTube's own paid-promotion flag rules out undisclosed\_advertising. In training this holds in **0 of 1,281** such instances — a hard constraint, not a tendency.  
-- undisclosed\_advertising and inadequate\_disclosure are mutually exclusive by definition; we keep whichever the model scores higher.  
+- YouTube's own paid-promotion flag rules out undisclosed\_advertising. In training this holds in **0 of 1,281** such instances — a hard constraint, not a tendency.
+- undisclosed\_advertising and inadequate\_disclosure are mutually exclusive by definition; we keep whichever the model scores higher.
 - A near-empty transcript implies insufficient\_context.
 
 ### Transcript length as a feature — kept
@@ -226,10 +226,10 @@ instances)** used for every encoder configuration. Identical folds, identical
 instances, identical decision rule, so the two are directly comparable and can
 be averaged fold-honestly.
 
-| | ModernBERT-large | classical TF-IDF | 50/50 blend | folds won by the blend |
-| :---- | ----: | ----: | ----: | :---- |
-| **ST1** | **0.614** | 0.595 (−0.019) | 0.603 (−0.011) | **2/5** |
-| **ST2** | 0.661 | 0.686 (\+0.025) | **0.731 (\+0.070)** | **5/5** |
+|               | ModernBERT-large | classical TF-IDF |               50/50 blend | folds won by the blend |
+| :------------ | ---------------: | ---------------: | ------------------------: | :--------------------- |
+| **ST1** |  **0.614** |  0.595 (−0.019) |           0.603 (−0.011) | **2/5**          |
+| **ST2** |            0.661 |  0.686 (\+0.025) | **0.731 (\+0.070)** | **5/5**          |
 
 *Mean of five held-out folds. The blend was adopted for ST2 and rejected for ST1.*
 
@@ -258,11 +258,11 @@ better-calibrated model is a threshold adjustment in disguise. That is testable:
 fit per-label thresholds on four folds, apply them to the fifth, and see how much
 of the gain a purely calibration-based fix recovers.
 
-| ST2, fold-honest | mean | vs encoder | folds won |
-| :---- | ----: | :---- | :---- |
-| encoder at 0.5 | 0.661 | — | — |
-| encoder \+ per-label thresholds | 0.696 | \+0.035 | 4/5 |
-| **50/50 blend at 0.5** | **0.731** | **\+0.070** | **5/5** |
+| ST2, fold-honest               |            mean | vs encoder        | folds won     |
+| :----------------------------- | --------------: | :---------------- | :------------ |
+| encoder at 0.5                 |           0.661 | —                | —            |
+| encoder\+ per-label thresholds |           0.696 | \+0.035           | 4/5           |
+| **50/50 blend at 0.5**   | **0.731** | **\+0.070** | **5/5** |
 
 **The gain splits almost exactly in half.** \+0.035 is recalibration, which
 thresholds also reach. The other \+0.035 is complementarity — information the
@@ -304,10 +304,10 @@ hybrid on 20 resampled halves of a 504-instance dev set, \+0.072, **20/20**.
 Both were measured on the evaluation set in the same submission. ST3 delivered
 **\+0.087** — more than predicted. ST2 delivered **−0.029**.
 
-| | instrument | instances | prediction | delivered |
-| :---- | :---- | ----: | :---- | :---- |
-| ST3 hybrid | 20 resampled halves of dev | 504 | \+0.072, 20/20 | **\+0.087** |
-| ST2 blend | 5-fold CV over train\+dev | 2,857 | \+0.070, 5/5 | **−0.029** |
+|            | instrument                 | instances | prediction     | delivered         |
+| :--------- | :------------------------- | --------: | :------------- | :---------------- |
+| ST3 hybrid | 20 resampled halves of dev |       504 | \+0.072, 20/20 | **\+0.087** |
+| ST2 blend  | 5-fold CV over train\+dev  |     2,857 | \+0.070, 5/5   | **−0.029** |
 
 The bigger, more careful, more expensive instrument is the one that lied. That
 inversion is worth more than the score it cost.
@@ -317,13 +317,13 @@ inversion is worth more than the score it cost.
 The blend moves ST2 from 1.89 labels per instance to 1.43, against a training
 prior of 1.32. Per class, on the 503 evaluation instances:
 
-| ST2 class | train n | encoder | blend | change |
-| :---- | ----: | ----: | ----: | ----: |
+| ST2 class          |      train n |     encoder |       blend |        change |
+| :----------------- | -----------: | ----------: | ----------: | ------------: |
 | **gambling** | **17** | **3** | **0** | **−3** |
-| gambling\_adjacent | 109 | 47 | 24 | −23 |
-| health | 319 | 72 | 46 | −26 |
-| creator\_community | 316 | 122 | 87 | −35 |
-| apps | 825 | 172 | 128 | −44 |
+| gambling\_adjacent |          109 |          47 |          24 |          −23 |
+| health             |          319 |          72 |          46 |          −26 |
+| creator\_community |          316 |         122 |          87 |          −35 |
+| apps               |          825 |         172 |         128 |          −44 |
 
 `gambling` is predicted **zero times**, which fixes its F1 at exactly 0. ST2 is
 macro-averaged over twelve classes, so one class dropping out costs up to
@@ -382,11 +382,11 @@ The most portable result here is not about this dataset. It is about how much no
 
 Re-running an *identical* configuration — same code, same seed — gave a mean of 0.618 on one run and 0.575 on another. torch.manual\_seed does not make training deterministic: GPU atomics, cuDNN kernel selection and dropout ordering all vary.
 
-| Sub-task | Identical-config spread | Apparent level effect | Verdict |
-| :---- | :---- | :---- | :---- |
-| ST1 | 0.089 | 0.091 | indistinguishable |
-| ST3 | 0.056 | 0.009 | indistinguishable |
-| ST2 | 0.016 | 0.104 | real |
+| Sub-task | Identical-config spread | Apparent level effect | Verdict           |
+| :------- | :---------------------- | :-------------------- | :---------------- |
+| ST1      | 0.089                   | 0.091                 | indistinguishable |
+| ST3      | 0.056                   | 0.009                 | indistinguishable |
+| ST2      | 0.016                   | 0.104                 | real              |
 
 Every conclusion in this report that rested on single runs was withdrawn and re-measured across seeds; the surviving claims are the ones with t-tests attached. Two practical consequences follow.
 
@@ -398,20 +398,20 @@ Averaging probabilities across six seeds, instead of selecting among them, is th
 
 Three observations that cost us time and may save someone else's.
 
-- **dev.jsonl is not valid JSONL.** Six of its 504 records span multiple physical lines, so the shipped load\_data.py and check\_submission.py both raise JSONDecodeError on the first instance. Naive line-parsing silently yields 503 of 504 — the dangerous failure, since it produces slightly wrong local scores with no error. train.jsonl and test.jsonl are clean. Streaming with json.JSONDecoder().raw\_decode reads all three correctly.  
-- **Channel-disjoint is not brand-disjoint.** Two-thirds of dev and test instances promote a domain seen in training, and 119 of the 170 domains with three or more training instances carry a single ST1 label. A substantial share of ST1 and ST2 is reachable by memorising brands rather than by understanding the segment, which is worth knowing when reading any score on this benchmark.  
+- **dev.jsonl is not valid JSONL.** Six of its 504 records span multiple physical lines, so the shipped load\_data.py and check\_submission.py both raise JSONDecodeError on the first instance. Naive line-parsing silently yields 503 of 504 — the dangerous failure, since it produces slightly wrong local scores with no error. train.jsonl and test.jsonl are clean. Streaming with json.JSONDecoder().raw\_decode reads all three correctly.
+- **Channel-disjoint is not brand-disjoint.** Two-thirds of dev and test instances promote a domain seen in training, and 119 of the 170 domains with three or more training instances carry a single ST1 label. A substantial share of ST1 and ST2 is reachable by memorising brands rather than by understanding the segment, which is worth knowing when reading any score on this benchmark.
 - **ST1's metric.** Macro-averaging over all five ST1 labels rather than reference-present ones changes the same predictions by \~0.13, because other has 2 training and 0 dev instances. We confirmed the leaderboard uses reference-present labels by matching a submission scored at 0.6185 to a local 0.6183.
 
 ## **9\. Cost, and what we would do with more**
 
 The submitted system costs about **22 GPU-hours on a single 16GB card** (RTX PRO 2000 Blackwell), all of it one-off training:
 
-| Component | Runs | Each | Total |
-| :---- | ----: | ----: | ----: |
-| ModernBERT-large, level 4 @2048 (ST1, ST2) | 6 | \~52 min | 5.2 h |
-| ModernBERT-large, level 1 @1024, 6 epochs (ST3) | 6 | \~78 min | 7.8 h |
-| QLoRA on Qwen2.5-7B-Instruct, 4-bit (ST3 disclosure) | 3 | \~3 h | 9.0 h |
-| TF-IDF \+ logistic regression (ST2) | 1 | \~10 min | CPU only |
+| Component                                            | Runs |     Each |    Total |
+| :--------------------------------------------------- | ---: | -------: | -------: |
+| ModernBERT-large, level 4 @2048 (ST1, ST2)           |    6 | \~52 min |    5.2 h |
+| ModernBERT-large, level 1 @1024, 6 epochs (ST3)      |    6 | \~78 min |    7.8 h |
+| QLoRA on Qwen2.5-7B-Instruct, 4-bit (ST3 disclosure) |    3 |    \~3 h |    9.0 h |
+| TF-IDF\+ logistic regression (ST2)                   |    1 | \~10 min | CPU only |
 
 Inference over all 3,360 instances is **\~2 GPU-hours**, nine tenths of it the 7B component; the encoders and the classical arm together are under 20 minutes. The marginal cost of scoring one more video is a transcript, two encoder forward passes and one 7B forward pass.
 
@@ -425,16 +425,16 @@ Level-1 models also train roughly three times faster than level-4 ones, so the c
 
 The organisers pose this as an open question and do not score it. We ran the experiment: a local instruct model (Qwen2.5-7B, 4-bit, on the same 16GB card) predicting ST3 zero-shot, in three conditions that differ **only** in how much legal grounding the system prompt carries. Model, decoding, instances, parsing and the constraint layer are identical across conditions, so any difference is attributable to the legal context alone.
 
-| Flag | Fine-tuned encoder | Bare flag names | \+ taxonomy definitions | \+ legal provisions |
-| :---- | :---- | :---- | :---- | :---- |
-| misleading\_claim | **0.76** | 0.02 | 0.09 | 0.21 |
-| undisclosed\_advertising | **0.65** | 0.48 | 0.36 | 0.42 |
-| age\_restricted\_or\_prohibited\_product | **0.45** | 0.15 | 0.37 | 0.32 |
-| inadequate\_disclosure | **0.41** | 0.13 | 0.22 | 0.14 |
-| direct\_exhortation | 0.34 | 0.41 | 0.41 | **0.45** |
-| no\_flag | 0.22 | 0.35 | **0.42** | 0.37 |
-| **ST3 macro-F1** | **0.427** | 0.254 | 0.292 | 0.290 |
-| ST3 family | **0.645** | 0.406 | 0.431 | 0.419 |
+| Flag                                     | Fine-tuned encoder | Bare flag names | \+ taxonomy definitions | \+ legal provisions |
+| :--------------------------------------- | :----------------- | :-------------- | :---------------------- | :------------------ |
+| misleading\_claim                        | **0.76**     | 0.02            | 0.09                    | 0.21                |
+| undisclosed\_advertising                 | **0.65**     | 0.48            | 0.36                    | 0.42                |
+| age\_restricted\_or\_prohibited\_product | **0.45**     | 0.15            | 0.37                    | 0.32                |
+| inadequate\_disclosure                   | **0.41**     | 0.13            | 0.22                    | 0.14                |
+| direct\_exhortation                      | 0.34               | 0.41            | 0.41                    | **0.45**      |
+| no\_flag                                 | 0.22               | 0.35            | **0.42**          | 0.37                |
+| **ST3 macro-F1**                   | **0.427**    | 0.254           | 0.292                   | 0.290               |
+| ST3 family                               | **0.645**    | 0.406           | 0.431                   | 0.419               |
 
 **Definitions help; citations do not.** Giving the model the taxonomy's plain-language definitions is worth **\+0.038** over bare flag names. Adding the instruments and provisions from legal\_provisions.json on top is worth **−0.002** — nothing. For most flags, what carries the signal is the written test, not the statutory reference.
 
@@ -446,11 +446,11 @@ The organisers pose this as an open question and do not score it. We ran the exp
 
 The LLM wins precisely on the flags where an encoder is structurally blind: those defined by a written test it cannot read. Substituting the LLM's direct\_exhortation decision into the encoder's output:
 
-| ST3 system | ST3 | direct\_exhortation | no\_flag |
-| :---- | :---- | :---- | :---- |
-| Encoder alone | 0.439 | 0.34 | 0.24 |
-| \+ LLM (taxonomy) for exhortation | 0.461 | 0.41 | 0.34 |
-| \+ LLM (provisions) for exhortation | **0.465** | **0.45** | 0.33 |
+| ST3 system                          | ST3             | direct\_exhortation | no\_flag |
+| :---------------------------------- | :-------------- | :------------------ | :------- |
+| Encoder alone                       | 0.439           | 0.34                | 0.24     |
+| \+ LLM (taxonomy) for exhortation   | 0.461           | 0.41                | 0.34     |
+| \+ LLM (provisions) for exhortation | **0.465** | **0.45**      | 0.33     |
 
 **\+0.026 on ST3**, consistent across both conditions, with no\_flag improving as a side effect: removing the encoder's spurious exhortation calls lets the compliant class surface. The LLM is zero-shot and never saw dev, so this is not a fitted result.
 
@@ -464,16 +464,16 @@ The per-flag observation may still hold: the LLM's advantage on direct\_exhortat
 
 The comparison above supplies legal *definitions*. A second experiment supplies labelled *examples* instead — the same model, the same prompt condition, the same constraint layer, with eight in-context demonstrations drawn from train. Two selection strategies: eight fixed at random, and eight retrieved per instance by TF-IDF similarity over transcripts.
 
-| Flag | Fine-tuned encoder | Zero-shot | Random-8 | Retrieved-8 |
-| :---- | :---- | :---- | :---- | :---- |
-| misleading\_claim | **0.76** | 0.09 | 0.69 | 0.70 |
-| undisclosed\_advertising | **0.65** | 0.36 | 0.33 | 0.41 |
-| age\_restricted\_or\_prohibited\_product | **0.45** | 0.37 | 0.29 | 0.38 |
-| inadequate\_disclosure | **0.41** | 0.22 | 0.28 | 0.31 |
-| direct\_exhortation | 0.34 | **0.41** | 0.15 | 0.33 |
-| hfss\_food\_marketing | **0.26** | 0.07 | 0.00 | 0.15 |
-| **ST3 macro-F1** | **0.427** | 0.292 | 0.292 | 0.368 |
-| ST3 family | **0.645** | 0.431 | 0.496 | 0.530 |
+| Flag                                     | Fine-tuned encoder | Zero-shot      | Random-8 | Retrieved-8 |
+| :--------------------------------------- | :----------------- | :------------- | :------- | :---------- |
+| misleading\_claim                        | **0.76**     | 0.09           | 0.69     | 0.70        |
+| undisclosed\_advertising                 | **0.65**     | 0.36           | 0.33     | 0.41        |
+| age\_restricted\_or\_prohibited\_product | **0.45**     | 0.37           | 0.29     | 0.38        |
+| inadequate\_disclosure                   | **0.41**     | 0.22           | 0.28     | 0.31        |
+| direct\_exhortation                      | 0.34               | **0.41** | 0.15     | 0.33        |
+| hfss\_food\_marketing                    | **0.26**     | 0.07           | 0.00     | 0.15        |
+| **ST3 macro-F1**                   | **0.427**    | 0.292          | 0.292    | 0.368       |
+| ST3 family                               | **0.645**    | 0.431          | 0.496    | 0.530       |
 
 **Eight examples move misleading\_claim from 0.09 to 0.70.** The model's legal reasoning is unchanged between the two conditions; only its exposure to how the flag is actually applied differs. This converts the observation below from an inference into a demonstration: the fine-tuned encoder's advantage on this flag is knowledge of an annotation convention, not superior legal analysis.
 
@@ -481,7 +481,7 @@ The comparison above supplies legal *definitions*. A second experiment supplies 
 
 The two label types behave oppositely:
 
-- **Policy-like labels**, where the definition is broad and the annotation pipeline supplies the operative threshold, are learned from examples and essentially cannot be reasoned to. misleading\_claim fires on 54% of instances; no reading of UCPD Arts. 6–7 predicts that rate.  
+- **Policy-like labels**, where the definition is broad and the annotation pipeline supplies the operative threshold, are learned from examples and essentially cannot be reasoned to. misleading\_claim fires on 54% of instances; no reading of UCPD Arts. 6–7 predicts that rate.
 - **Test-like labels**, where the taxonomy states a decision procedure, are better served by the procedure than by examples.
 
 **Random demonstrations are worth nothing in aggregate** (0.292, identical to zero-shot): the misleading\_claim gain is exactly cancelled by the collapse of direct\_exhortation and hfss\_food\_marketing. Retrieval recovers most of it (0.368). The useful statement is therefore not "examples help" but "*similar* examples help, on the labels that are conventions rather than tests".
@@ -502,17 +502,17 @@ classification head emits calibrated probabilities that ensemble with the
 encoder's directly. The input carries the taxonomy's written tests verbatim.
 Three seeds, ~3 GPU-hours each on the same 16GB card.
 
-| Flag | gold n | encoder (level 1) | **QLoRA LLM** |
-| :---- | ----: | ----: | ----: |
-| undisclosed\_advertising | 74 | 0.610 | **0.850** |
-| inadequate\_disclosure | 118 | 0.369 | **0.482** |
-| direct\_exhortation | 77 | **0.353** | 0.324 |
-| misleading\_claim | 260 | **0.769** | 0.685 |
-| age\_restricted\_or\_prohibited\_product | 16 | **0.600** | 0.160 |
-| hfss\_food\_marketing | 5 | **0.333** | 0.222 |
-| no\_flag | 127 | **0.556** | 0.491 |
-| insufficient\_context | 7 | **0.435** | 0.400 |
-| **ST3 macro** | | **0.503** | 0.452 |
+| Flag                                     | gold n | encoder (level 1) | **QLoRA LLM** |
+| :--------------------------------------- | -----: | ----------------: | ------------------: |
+| undisclosed\_advertising                 |     74 |             0.610 |     **0.850** |
+| inadequate\_disclosure                   |    118 |             0.369 |     **0.482** |
+| direct\_exhortation                      |     77 |   **0.353** |               0.324 |
+| misleading\_claim                        |    260 |   **0.769** |               0.685 |
+| age\_restricted\_or\_prohibited\_product |     16 |   **0.600** |               0.160 |
+| hfss\_food\_marketing                    |      5 |   **0.333** |               0.222 |
+| no\_flag                                 |    127 |   **0.556** |               0.491 |
+| insufficient\_context                    |      7 |   **0.435** |               0.400 |
+| **ST3 macro**                      |        |   **0.503** |               0.452 |
 
 *Dev, six-seed encoder against three-seed LLM, both at a flat 0.5 with no constraint layer.*
 
@@ -536,11 +536,11 @@ against the encoder's 0.600.
 The distinction matters, and the two produce different numbers. Under the shipped
 constraint layer, on 20 channel-grouped held-out halves of dev:
 
-| ST3 arm | dev | vs encoder-only | splits won |
-| :---- | ----: | :---- | :---- |
-| encoder ep6 alone | 0.502 | — | — |
-| \+ LLM averaged into **all eight** flags | 0.541 | \+0.039 but **sd 0.040** | **10/20** |
-| \+ LLM averaged into **the disclosure family only** | **0.530** | \+0.029, sd 0.009 | **20/20** |
+| ST3 arm                                                   |             dev | vs encoder-only                | splits won      |
+| :-------------------------------------------------------- | --------------: | :----------------------------- | :-------------- |
+| encoder ep6 alone                                         |           0.502 | —                             | —              |
+| \+ LLM averaged into **all eight** flags            |           0.541 | \+0.039 but **sd 0.040** | **10/20** |
+| \+ LLM averaged into **the disclosure family only** | **0.530** | \+0.029, sd 0.009              | **20/20** |
 
 **The all-flags blend has the larger mean and we did not ship it.** Its
 per-split standard deviation is four times larger and it wins exactly half its
@@ -563,10 +563,10 @@ would have thrown away the single most useful model we trained.
 Once the arm was strong enough for the question to be worth asking, we re-tested
 the rules against it:
 
-| ST3 arm | dev | splits won vs shipped |
-| :---- | ----: | :---- |
-| shipped: blend \+ full constraint layer | **0.530** | — |
-| blend, format constraints only | 0.473 | 1/20 |
+| ST3 arm                                |             dev | splits won vs shipped |
+| :------------------------------------- | --------------: | :-------------------- |
+| shipped: blend\+ full constraint layer | **0.530** | —                    |
+| blend, format constraints only         |           0.473 | 1/20                  |
 
 The layer is worth **\+0.057 on 19 of 20 splits**. Earlier in the project, over a
 weaker arm and with only the exclusivity rules in place, the same measurement
@@ -588,12 +588,12 @@ Every model in this report runs locally. Beyond cost, that is a compliance prope
 
 The largest single defect in the system was present from the first training run and surfaced only under a per-class error audit. It is worth recording both the defect and the fact that component-level experimentation did not reveal it. A breakdown of ST1 by class:
 
-| ST1 class | n | Precision | Recall | F1 |
-| :---- | ----: | ----: | ----: | ----: |
-| digital\_content\_or\_services | 248 | 0.909 | 0.923 | 0.916 |
-| physical\_goods | 218 | 0.888 | 0.945 | 0.916 |
-| physical\_services | 24 | 0.833 | 0.625 | 0.714 |
-| **none** | **14** | **1.000** | **0.143** | **0.250** |
+| ST1 class                      |            n |       Precision |          Recall |              F1 |
+| :----------------------------- | -----------: | --------------: | --------------: | --------------: |
+| digital\_content\_or\_services |          248 |           0.909 |           0.923 |           0.916 |
+| physical\_goods                |          218 |           0.888 |           0.945 |           0.916 |
+| physical\_services             |           24 |           0.833 |           0.625 |           0.714 |
+| **none**                 | **14** | **1.000** | **0.143** | **0.250** |
 
 none — no identifiable commercial offer, typically a dead or parked page — is recovered twice in fourteen. Precision is perfect: when the system predicts none it is always correct; it simply almost never does. Because ST1 macro-averages over four classes, that one class accounts for 0.19 of ST1.
 
@@ -603,11 +603,11 @@ The same shape appears in ST3. no\_flag — commercial content that appears comp
 
 **A third mechanism: the ensembling itself.** Averaging probabilities across seeds — the step we adopted precisely because selecting among noisy runs is unreliable — suppresses the rare classes further. Training a variant with class-weighted ST1 cross-entropy and comparing the two ways of combining its five seeds:
 
-| ST1 combination | macro-F1 | none F1 | none predicted (14 gold) |
-| :---- | ----: | ----: | ----: |
-| individual seeds, mean of | 0.735 | — | — |
-| probability averaging | 0.694 | 0.235 | 3 |
-| majority vote | **0.745** | **0.435** | 9 |
+| ST1 combination           |        macro-F1 |         none F1 | none predicted (14 gold) |
+| :------------------------ | --------------: | --------------: | -----------------------: |
+| individual seeds, mean of |           0.735 |              — |                       — |
+| probability averaging     |           0.694 |           0.235 |                        3 |
+| majority vote             | **0.745** | **0.435** |                        9 |
 
 The ensemble scores *below the average of its own members* under probability averaging, because averaging shrinks exactly the extreme probabilities a rare class depends on: five seeds that each confidently predict none on different instances average to a confident prediction on none of them. Majority voting preserves them, and recovers 9 of 14.
 
@@ -619,27 +619,27 @@ For a compliance system this is the least acceptable direction of bias. A monito
 
 Both defects admit post-hoc corrections that require no retraining. We validated each on ten channel-grouped halves of dev, with constants fixed a priori rather than tuned per split:
 
-| Correction | Held-out gain | sd | Splits improved |
-| :---- | :---- | :---- | :---- |
+| Correction                     | Held-out gain  | sd              | Splits improved |
+| :----------------------------- | :------------- | :-------------- | :-------------- |
 | no\_flag emitted when p ≥ 0.6 | \+0.031 on ST3 | **0.010** | **10/10** |
-| ST1 logit adjustment, τ \= 0.3 | \+0.051 on ST1 | 0.070 | 7/10 |
+| ST1 logit adjustment, τ\= 0.3 | \+0.051 on ST1 | 0.070           | 7/10            |
 
 We then measured both on the evaluation set. Because macro-F1 for each sub-task depends only on that sub-task's predictions, and our submissions differed in one component at a time, the effects decompose exactly:
 
-| Submission | ST1 | ST2 | ST3 | Mean |
-| :---- | :---- | :---- | :---- | :---- |
-| 1\. Routed seed ensemble | 0.5906 | 0.7272 | 0.4707 | 0.5962 |
-| 2\. \+ LLM substitution for direct\_exhortation | 0.5906 | 0.7272 | 0.4657\* | 0.5945 |
-| 3\. \+ ST1 τ=0.3 and no\_flag t=0.6 | 0.5501 | 0.7272 | 0.4913 | 0.5895 |
-| **4\. \+ no\_flag t=0.6 only** | **0.5906** | **0.7272** | **0.4913** | **0.6030** |
+| Submission                                      | ST1              | ST2              | ST3              | Mean             |
+| :---------------------------------------------- | :--------------- | :--------------- | :--------------- | :--------------- |
+| 1\. Routed seed ensemble                        | 0.5906           | 0.7272           | 0.4707           | 0.5962           |
+| 2\. \+ LLM substitution for direct\_exhortation | 0.5906           | 0.7272           | 0.4657\*         | 0.5945           |
+| 3\. \+ ST1 τ=0.3 and no\_flag t=0.6            | 0.5501           | 0.7272           | 0.4913           | 0.5895           |
+| **4\. \+ no\_flag t=0.6 only**            | **0.5906** | **0.7272** | **0.4913** | **0.6030** |
 
 \* *inferred from the mean; ST1 and ST2 predictions were identical to submission 1\.*
 
-| Component | Effect on the evaluation set |
-| :---- | :---- |
-| no\_flag t \= 0.6 | **\+0.0206 on ST3** |
-| ST1 logit adjustment τ \= 0.3 | **−0.0405 on ST1** |
-| LLM substitution for direct\_exhortation | **−0.005 on ST3** |
+| Component                                | Effect on the evaluation set |
+| :--------------------------------------- | :--------------------------- |
+| no\_flag t \= 0.6                        | **\+0.0206 on ST3**    |
+| ST1 logit adjustment τ\= 0.3            | **−0.0405 on ST1**    |
+| LLM substitution for direct\_exhortation | **−0.005 on ST3**     |
 
 **Held-out consistency predicted transfer; effect size did not.** The correction with the tightest variance and a perfect split record (no\_flag: sd 0.010, 10/10) transferred. The one with the *largest* dev gain but loose variance (ST1 τ: \+0.051 dev, sd 0.070, 7/10) reversed sign on test and cost more than the other gained. The LLM substitution, which was never subjected to the held-out protocol at all, also failed.
 
@@ -653,12 +653,12 @@ Comparing dev and evaluation performance per sub-task explains the pattern:
 
 Comparing the submitted system's dev and evaluation scores, sub-task by sub-task:
 
-| Sub-task | Dev | Evaluation | Difference |
-| :---- | :---- | :---- | :---- |
-| ST1 | 0.699 | 0.5906 | evaluation **harder**, −0.108 |
-| ST2 | 0.649 | 0.7272 | evaluation easier, \+0.078 |
-| ST3 | 0.468 | 0.4913 | evaluation easier, \+0.023 |
-| **mean** | **0.605** | **0.6030** | **−0.002** |
+| Sub-task       | Dev             | Evaluation       | Difference                          |
+| :------------- | :-------------- | :--------------- | :---------------------------------- |
+| ST1            | 0.699           | 0.5906           | evaluation**harder**, −0.108 |
+| ST2            | 0.649           | 0.7272           | evaluation easier,\+0.078           |
+| ST3            | 0.468           | 0.4913           | evaluation easier,\+0.023           |
+| **mean** | **0.605** | **0.6030** | **−0.002**                   |
 
 The two splits are channel-disjoint and are not interchangeable samples. Yet the *mean* agrees to 0.002, because the per-sub-task errors are large and happen to cancel. The same held for the first submission: dev 0.596 against 0.5962.
 
@@ -686,13 +686,13 @@ Run over dev at a 20% crawl budget and 15% abstention: 26% of segments close at 
 
 Ranking every segment by the probability that any *per se* prohibition applies — a noisy-or over undisclosed\_advertising and direct\_exhortation:
 
-| Reviewed | True per se found | Precision | Lift over random |
-| ----: | ----: | ----: | ----: |
-| top 25 (5%) | 18 | 72% | 2.25× |
-| **top 50 (10%)** | **38** | **76%** | **2.53×** |
-| top 100 (20%) | 61 | 61% | 1.91× |
-| top 200 (40%) | 88 | 44% | 1.47× |
-| all 504 | 135 | 26.8% | 1.00× |
+|               Reviewed | True per se found |     Precision | Lift over random |
+| ---------------------: | ----------------: | ------------: | ---------------: |
+|            top 25 (5%) |                18 |           72% |           2.25× |
+| **top 50 (10%)** |      **38** | **76%** | **2.53×** |
+|          top 100 (20%) |                61 |           61% |           1.91× |
+|          top 200 (40%) |                88 |           44% |           1.47× |
+|                all 504 |               135 |         26.8% |           1.00× |
 
 **Reviewing 10% of the corpus surfaces 28% of all *per se* violations at 76% precision**, against a 26.8% base rate. That is an operating point an authority can budget against, and it is reachable without crawling anything.
 
@@ -704,17 +704,17 @@ It triages; it does not adjudicate. At 80% recall the *per se* flags run at prec
 
 ## **13\. Limitations**
 
-- The L2 configuration was run once. Its position in the level ordering is not established, and we do not claim it.  
-- ST3's advantage at level 1 is significant at p \= 0.018 across 17 runs but modest in size (0.031). It supports "the crawl does not help ST3" more strongly than it supports any precise ordering among the cheap levels.  
-- Labels are automatically annotated with human validation, so all scores measure agreement with an annotation pipeline, not with law. Our system partly learns that pipeline's conventions — misleading\_claim fires on 54% of instances, a rate reflecting a labelling policy as much as a legal threshold.  
-- Our first submission scored **0.5962** against a held-out estimate of 0.60 made before submitting; the fourth scored **0.6030**. The agreement of the first is evidence that the channel-grouped estimation protocol is calibrated at the level of a whole system, even though Section 11 shows it was not reliable for selecting individual components on ST1.  
-- Five evaluation submissions were available. The first four measured components one at a time; two of them were regressions, which is how the exact decomposition in Section 11 was obtained. In retrospect the two corrections there should have been submitted separately rather than bundled, since they carried very different held-out support; bundling them cost one upload and briefly obscured which component was responsible.  
-- **The ST2 blend was a mistake and we shipped it**, on 5/5 folds of a 2,857-instance instrument that could not resolve a 17-instance class (Section 6b). It cost 0.029 on ST2 and 0.0098 on the mean. Submissions were exhausted, so the corrected system — identical minus that component, scoring 0.6321 — is reported but not leaderboard-verified.  
-- The ST2 blend weight was fixed at 0.5 and never tuned. Given the above this was fortunate rather than principled: tuning it would have added a fitted parameter to a component whose validation was already blind in the dimension that mattered.  
-- Six adoption decisions were made on the consistency criterion and measured on the evaluation set. Five transferred; one reversed. We report the hit rate rather than only the successes, since a criterion that is right five times in six is a useful instrument and a criterion advertised as reliable is not the same thing.  
+- The L2 configuration was run once. Its position in the level ordering is not established, and we do not claim it.
+- ST3's advantage at level 1 is significant at p \= 0.018 across 17 runs but modest in size (0.031). It supports "the crawl does not help ST3" more strongly than it supports any precise ordering among the cheap levels.
+- Labels are automatically annotated with human validation, so all scores measure agreement with an annotation pipeline, not with law. Our system partly learns that pipeline's conventions — misleading\_claim fires on 54% of instances, a rate reflecting a labelling policy as much as a legal threshold.
+- Our first submission scored **0.5962** against a held-out estimate of 0.60 made before submitting; the fourth scored **0.6030**. The agreement of the first is evidence that the channel-grouped estimation protocol is calibrated at the level of a whole system, even though Section 11 shows it was not reliable for selecting individual components on ST1.
+- Five evaluation submissions were available. The first four measured components one at a time; two of them were regressions, which is how the exact decomposition in Section 11 was obtained. In retrospect the two corrections there should have been submitted separately rather than bundled, since they carried very different held-out support; bundling them cost one upload and briefly obscured which component was responsible.
+- **The ST2 blend was a mistake and we shipped it**, on 5/5 folds of a 2,857-instance instrument that could not resolve a 17-instance class (Section 6b). It cost 0.029 on ST2 and 0.0098 on the mean. Submissions were exhausted, so the corrected system — identical minus that component, scoring 0.6321 — is reported but not leaderboard-verified.
+- The ST2 blend weight was fixed at 0.5 and never tuned. Given the above this was fortunate rather than principled: tuning it would have added a fitted parameter to a component whose validation was already blind in the dimension that mattered.
+- Six adoption decisions were made on the consistency criterion and measured on the evaluation set. Five transferred; one reversed. We report the hit rate rather than only the successes, since a criterion that is right five times in six is a useful instrument and a criterion advertised as reliable is not the same thing.
 - The LLM comparison uses one 7B model at 4-bit precision. A larger or full-precision model might change the balance, though not obviously the direction: the encoder's advantage comes from having seen the annotation policy, which no amount of model capacity supplies.
 
-*All figures are dev macro-F1 under the leaderboard metric, computed with a local replica validated against a scored submission. Significance by Welch's t-test across independent training runs.*  
+*All figures are dev macro-F1 under the leaderboard metric, computed with a local replica validated against a scored submission. Significance by Welch's t-test across independent training runs.*
 
 ## **14\. Reproducing the submitted system**
 
@@ -750,8 +750,7 @@ python starting_kit_test/check_submission.py \\
   work/SUBMIT_BEST.jsonl data/public_data_test/test.jsonl
 ```
 
-The validation instrument is separate from the build. `src/encoder.py
---cv-folds 5 --cv-fold K` produces the out-of-fold predictions over train\+dev
+The validation instrument is separate from the build. `src/encoder.py --cv-folds 5 --cv-fold K` produces the out-of-fold predictions over train\+dev
 that every adoption decision in Sections 6a and 10a was made on; `src/data.py`
 holds the streaming loader that reads the malformed `dev.jsonl` correctly
 (Section 8), and `src/metrics.py` the local replica of the leaderboard metric,
