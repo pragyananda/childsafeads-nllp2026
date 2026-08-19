@@ -4,7 +4,7 @@
 
 *Final evaluation score **0.6223** mean macro-F1 · routed hybrid — fine-tuned encoder \+ classical ML \+ QLoRA LLM, each used where it measurably wins · 15 fine-tuning runs in the submitted system, 58 across the study · 1×16GB GPU · \~22 GPU-hours to build, \~45 including everything rejected · no paid API, no instance leaves the machine*
 
-*Team: **pragyananda** · code and this report: **https://github.com/pragyananda/childsafeads-nllp2026** · every number below is reproducible from the commands in Section 14\.*
+*Team: **pragyananda** · code and this report: `<repository URL>` · every number below is reproducible from the commands in Section 14\.*
 
 ## **Summary**
 

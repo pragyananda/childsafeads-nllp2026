@@ -1,0 +1,7 @@
+/data/
+/work/
+*.npz
+*.jsonl
+*.zip
+__pycache__/
+*.pyc
